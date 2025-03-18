@@ -6,20 +6,16 @@ end
 
 
 
-# Example usage with an initial guess using an optimization package:
-# using Optim
-# result = optimize(f, [ -1.2, 1.0 ], BFGS())
-# println("Optimiz
-include("TorchNLPModels.jl")
 using JSOSolvers, ADNLPModels, NLPModels
-import .TorchNLPModels: TorchModel
+using TorchNLPModels
 using MadNLP
 
+torch_file = "$(@__DIR__)/mwe"
 # Rosenbrock
 x0 = [-1.2, 1.0]
 nlp = ADNLPModel(f, x0)
-tnlp = TorchModel(x0,"mwe", "f", "grad", "vhp")
-mnlp = TorchModel(x0,"mwe", "f", "grad", "vhp")
+tnlp = TorchModel(x0, torch_file, "f", "grad", "vhp")
+mnlp = TorchModel(x0, torch_file, "f", "grad", "vhp")
 v = [1.0,1.0]
 println("f(x0): ", f(x0))
 println("grad: ", grad(nlp, x0))
