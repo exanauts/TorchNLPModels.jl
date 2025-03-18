@@ -1,33 +1,67 @@
 module TorchNLPModels
 
-using NLPModels
+using NLPModels, PyCall
 
-include("pycall.jl")
+# Import the Python module
+py"""
+# import mwe
+import torch
+import numpy as np  # Import numpy
+
+def as_numpy(tensor):
+    if isinstance(tensor, torch.Tensor):
+        return tensor.detach().cpu().numpy()
+    else:
+        return np.asarray(tensor)
+"""
+
+# include("pycall.jl")
 struct TorchModel{T,S} <: AbstractNLPModel{T,S}
     meta::NLPModelMeta{T,S}
     counters::Counters
-    # obj::Function
-    # grad::Function
-    # hess_structure!::Function
-    # hess_coord!::Function
-    # hprod!::Function
     x0::S
+    obj_func::PyObject
+    grad_func::PyObject
+    vhp_func::Union{PyObject, Nothing}
 end
 
-function TorchModel(x0)
+function TorchModel(x0, py_file::String, py_obj::String, py_grad::String, py_vhp::Union{String, Nothing}=nothing)
+    dir = dirname(py_file)
+    file = basename(py_file)
+    pushfirst!(PyVector(pyimport("sys")."path"), dir)
+    py_module = pyimport(file)
     nvar = length(x0)
-    @show nvar
     meta = NLPModelMeta(nvar; ncon = 0)
     counters = Counters()
-    return TorchModel(meta, counters, x0)
+    obj_func = py_module[py_obj]
+    grad_func = py_module[py_grad]
+    vhp_func = isnothing(py_vhp) ? nothing : py_module[py_vhp]
+    return TorchModel(meta, counters, x0, obj_func, grad_func, vhp_func)
 end
 
-function NLPModels.obj(::TorchModel, x)
-    return torch_obj(x)
+function NLPModels.obj(nlp::TorchModel{T,S}, x::Array{T}) where {T,S}
+    # Convert Julia array to PyTorch tensor
+    input_tensor_torch = py"torch.tensor"(x, requires_grad=true).to(py"torch.float64")
+
+    # Call the Python obj function
+    result = nlp.obj_func(input_tensor_torch)
+
+    # Convert the result back to a Julia scalar
+    return convert(Float64, result)
 end
 
-function NLPModels.grad!(::TorchModel, x, dx)
-    dx .= torch_grad(x)
+function NLPModels.grad!(nlp::TorchModel{T,S}, x::Array{T}, dx::Array{T}) where {T,S}
+    # Convert Julia array to PyTorch tensor
+    input_tensor_torch = py"torch.tensor"(x, requires_grad=true).to(py"torch.float64")
+
+    # Call the Python grad function
+    # result = py"mwe.grad"(py"mwe.f", input_tensor_torch)
+    result = nlp.grad_func(nlp.obj_func, input_tensor_torch)
+
+    # Convert the result back to a Julia array
+    numpy_result = py"as_numpy"(result)
+    dx .= convert(Array{Float64}, numpy_result)
+    return dx
 end
 
 # function NLPModels.hess_structure!(::TorchModel, hessian_structure)
@@ -50,12 +84,23 @@ function NLPModels.hess_structure!(nlp::TorchModel, hrows::Vector{Int64}, hcols:
 end
 
 function NLPModels.hprod!(
-    ::TorchModel{T,S},
-    x::AbstractVector,
-    v::AbstractVector,
-    Hv::AbstractVector
+    nlp::TorchModel{T,S},
+    x::Vector{T},
+    v::Vector{T},
+    Hv::Vector{T};
+    obj_weight::T=one(T)
 ) where {T,S}
-    Hv .= torch_vhp(x, v)
+    # Convert Julia arrays to PyTorch tensors
+    input_tensor_torch = py"torch.tensor"(x, requires_grad=true).to(py"torch.float64")
+    v_vector_torch = py"torch.tensor"(v).to(py"torch.float64")
+
+    # Call the Python vhp function
+    result = nlp.vhp_func(nlp.obj_func, input_tensor_torch, v_vector_torch)
+
+    # Convert the result back to a Julia array
+    numpy_result = py"as_numpy"(result)
+    Hv .= convert(Array{Float64}, numpy_result)
+    return Hv
 end
 
 function NLPModels.hess_coord!(

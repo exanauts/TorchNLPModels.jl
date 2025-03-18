@@ -18,12 +18,14 @@ using MadNLP
 # Rosenbrock
 x0 = [-1.2, 1.0]
 nlp = ADNLPModel(f, x0)
-tnlp = TorchModel(x0)
-mnlp = TorchModel(x0)
+tnlp = TorchModel(x0,"mwe", "f", "grad", "vhp")
+mnlp = TorchModel(x0,"mwe", "f", "grad", "vhp")
 v = [1.0,1.0]
 println("f(x0): ", f(x0))
 println("grad: ", grad(nlp, x0))
 println("hvprod: ", hprod(nlp, x0, v))
+println("grad: ", grad(tnlp, x0))
+println("hvprod: ", hprod(tnlp, x0, v))
 stats = lbfgs(nlp) # or trunk, tron, R2
 
 
@@ -54,7 +56,7 @@ solver = MadNLPSolver(
 )
 
 # Solve the optimization problem.
-result = MadNLP.solve!(solver)
-println("Solution: ", result.solution)
-println("Objective value: ", result.objective)
-println("Number of iterations: ", result.iter)
+# result = MadNLP.solve!(solver)
+# println("Solution: ", result.solution)
+# println("Objective value: ", result.objective)
+# println("Number of iterations: ", result.iter)
