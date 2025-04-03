@@ -16,11 +16,6 @@ nlp = ADNLPModel(f, x0)
 tnlp = TorchNLPModel(x0, torch_file, "f")
 mnlp = TorchNLPModel(x0, torch_file, "f")
 v = [1.0,1.0]
-println("f(x0): ", f(x0))
-println("grad: ", grad(nlp, x0))
-println("hvprod: ", hprod(nlp, x0, v))
-println("grad: ", grad(tnlp, x0))
-println("hvprod: ", hprod(tnlp, x0, v))
 stats = lbfgs(nlp) # or trunk, tron, R2
 
 
